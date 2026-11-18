@@ -4,7 +4,7 @@
    ========================================================== */
 
 /* >>> GANTI dengan URL /exec dari deployment Apps Script Anda <<< */
-const API_URL = 'PASTE_URL_EXEC_DI_SINI';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyWFVGIIKayBc_nyKxIlDH0p2V1YmK_wU4cS2O1pS_WEOeUBmEJpPy_DZojTKTsN30Dng/exec';
 
 const AppState = {
   view: 'login',
