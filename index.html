@@ -1,5 +1,166 @@
 <!DOCTYPE html>
 <html lang="id">
-<head><meta charset="utf-8"><title>Warung PO</title></head>
-<body><h1>Halo, Warung PO siap!</h1></body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#F47A1F">
+  <title>Warung PO Ibu Siti</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="syncBar" class="sync-bar" aria-hidden="true"></div>
+  <div id="toastHost" class="toast-host" role="status" aria-live="polite"></div>
+
+  <div id="sheetBackdrop" class="sheet-backdrop" onclick="closeSheet()"></div>
+  <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <h2 id="sheetTitle" class="sheet-title"></h2>
+      <button class="icon-btn" aria-label="Tutup" onclick="closeSheet()">✕</button>
+    </div>
+    <div id="sheetBody" class="sheet-body"></div>
+    <div id="sheetFoot" class="sheet-foot"></div>
+  </div>
+
+  <!-- LOGIN (pilihan peran) -->
+  <section id="view-login" class="view">
+    <div class="auth-wrap">
+      <div class="auth-card">
+        <div class="brand-mark" aria-hidden="true">PO</div>
+        <h1 class="auth-title">Warung PO Ibu Siti</h1>
+        <p class="auth-sub">Sistem pemesanan PO makanan &amp; kue rumahan</p>
+
+        <div class="seg" role="tablist">
+          <button id="tabCust" class="seg-btn is-on" role="tab" onclick="showAuthTab('cust')">Pelanggan</button>
+          <button id="tabAdmin" class="seg-btn" role="tab" onclick="showAuthTab('admin')">Admin Warung</button>
+        </div>
+
+        <form id="formCust" class="stack" onsubmit="loginCustomer(event)">
+          <label class="field-label" for="custWa">Nomor WhatsApp pemesan</label>
+          <input id="custWa" class="input" type="tel" inputmode="numeric" placeholder="0812-3456-7890" autocomplete="tel" required>
+          <p class="hint">Dipakai untuk melihat riwayat pesanan Anda.</p>
+          <button class="btn btn-primary btn-block" type="submit">Lihat Pesanan Saya</button>
+          <div class="divider"><span>atau</span></div>
+          <button class="btn btn-ghost btn-block" type="button" onclick="enterCatalog()">Buka Katalog Menu PO</button>
+        </form>
+
+        <form id="formAdmin" class="stack hidden" onsubmit="loginAdmin(event)">
+          <label class="field-label" for="adminPin">PIN Warung (6 digit)</label>
+          <input id="adminPin" class="input" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="current-password" required>
+          <button class="btn btn-primary btn-block" type="submit">Masuk Dashboard</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- PELANGGAN: KATALOG -->
+  <section id="view-catalog" class="view hidden">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark sm" aria-hidden="true">PO</span> <span>Warung PO Ibu Siti</span></div>
+      <button class="cart-chip" onclick="navigateTo('cart')" aria-label="Lihat keranjang">
+        🛍 <span id="cartCount" class="badge">0</span>
+      </button>
+    </header>
+
+    <div class="po-banner" id="poBanner"></div>
+    <div class="chips" id="catChips" role="tablist"></div>
+    <div id="menuGrid" class="menu-grid" aria-live="polite"></div>
+
+    <nav class="bottom-nav" aria-label="Navigasi utama">
+      <button class="bn-item is-on" onclick="navigateTo('catalog')">Menu</button>
+      <button class="bn-item" onclick="navigateTo('cart')">Keranjang <span id="navCartDot" class="dot hidden"></span></button>
+      <button class="bn-item" onclick="navigateTo('myOrders')">Pesanan Saya</button>
+      <button class="bn-item" onclick="navigateTo('login')">Akun</button>
+    </nav>
+    <div id="cartBar" class="cart-bar hidden" onclick="navigateTo('cart')">
+      <div><span id="cartBarCount">0 item</span> <strong id="cartBarTotal">Rp 0</strong></div>
+      <span class="cart-bar-cta">Lihat Keranjang →</span>
+    </div>
+  </section>
+
+  <!-- PELANGGAN: KERANJANG -->
+  <section id="view-cart" class="view hidden">
+    <header class="topbar">
+      <button class="icon-btn" aria-label="Kembali" onclick="navigateTo('catalog')">←</button>
+      <div class="topbar-title">Keranjang &amp; Checkout</div>
+      <span></span>
+    </header>
+    <div class="page">
+      <div id="cartLines" class="stack"></div>
+
+      <div class="card stack" id="cartForm">
+        <h3 class="card-title">Data pemesan</h3>
+        <label class="field-label" for="fNama">Nama lengkap</label>
+        <input id="fNama" class="input" type="text" placeholder="Contoh: Ibu Dewi" autocomplete="name" required>
+        <label class="field-label" for="fWa">Nomor WhatsApp</label>
+        <input id="fWa" class="input" type="tel" inputmode="numeric" placeholder="0812-3456-7890" autocomplete="tel" required>
+        <p class="hint">Notifikasi konfirmasi dan jadwal kirim dikirim ke nomor ini.</p>
+
+        <label class="field-label" for="fTgl">Tanggal kirim</label>
+        <input id="fTgl" class="input" type="date" required>
+        <label class="field-label" for="fJam">Waktu kirim</label>
+        <select id="fJam" class="input">
+          <option value="Pagi (08:00–11:00)">Pagi (08:00–11:00)</option>
+          <option value="Siang (10:00–13:00)">Siang (10:00–13:00)</option>
+          <option value="Sore (15:00–17:00)">Sore (15:00–17:00)</option>
+        </select>
+        <label class="field-label" for="fCatatan">Catatan (opsional)</label>
+        <textarea id="fCatatan" class="input" rows="2" maxlength="300" placeholder="Contoh: kurangi gula, bubble wrap tebal"></textarea>
+      </div>
+
+      <div class="card stack">
+        <div class="sum-row"><span>Subtotal</span><span id="sumSub" class="mono">Rp 0</span></div>
+        <div class="sum-row total"><span>Total</span><span id="sumTotal" class="mono">Rp 0</span></div>
+      </div>
+    </div>
+    <div class="sticky-foot">
+      <button class="btn btn-ghost" onclick="navigateTo('catalog')">Tambah Menu</button>
+      <button id="btnPlace" class="btn btn-primary" onclick="submitOrder()">Kirim Pesanan</button>
+    </div>
+  </section>
+
+  <!-- PELANGGAN: PESANAN SAYA -->
+  <section id="view-myOrders" class="view hidden">
+    <header class="topbar">
+      <button class="icon-btn" aria-label="Kembali" onclick="navigateTo('catalog')">←</button>
+      <div class="topbar-title">Pesanan Saya</div>
+      <span></span>
+    </header>
+    <div class="page">
+      <div id="myOrdersList" class="stack"></div>
+    </div>
+    <nav class="bottom-nav" aria-label="Navigasi utama">
+      <button class="bn-item" onclick="navigateTo('catalog')">Menu</button>
+      <button class="bn-item" onclick="navigateTo('cart')">Keranjang</button>
+      <button class="bn-item is-on" onclick="navigateTo('myOrders')">Pesanan Saya</button>
+      <button class="bn-item" onclick="navigateTo('login')">Akun</button>
+    </nav>
+  </section>
+
+  <!-- ADMIN: SHELL -->
+  <section id="view-admin" class="view hidden">
+    <div class="admin-shell">
+      <aside class="admin-side" aria-label="Menu admin">
+        <div class="brand"><span class="brand-mark sm" aria-hidden="true">PO</span> <span>Warung PO</span></div>
+        <nav id="adminNav" class="side-nav"></nav>
+        <button class="btn btn-ghost btn-block side-out" onclick="adminLogout()">Keluar</button>
+      </aside>
+      <main class="admin-main">
+        <header class="admin-head">
+          <div>
+            <h1 id="adminTitle" class="page-title">Dashboard</h1>
+            <p id="adminRole" class="hint"></p>
+          </div>
+          <button id="btnRefresh" class="btn btn-ghost" onclick="refreshAdmin()">Muat Ulang</button>
+        </header>
+        <div id="adminContent" class="admin-content"></div>
+      </main>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
 </html>
