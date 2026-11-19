@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadBootstrap();               // segarkan di latar
   const wa = lsGet(LS.waKey);
   if (wa) { AppState.custWa = wa.wa; AppState.custNama = wa.nama || ''; }
-  navigateTo(wa ? 'catalog' : 'login');
+  navigateTo('catalog');   // pelanggan langsung melihat menu; login ada di tombol Akun
   $('fWa').value = AppState.custWa || $('fWa').value;
   $('fTgl').min = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   $('fTgl').addEventListener('input', () => saveForm());
@@ -759,8 +759,12 @@ function openProductSheet(id) {
   const m = id ? AppState.admin.menu.find(x => x.id === id) : { nama: '', kategori: 'Kue Kering', varian: '', harga: '', aktif: true, periode: AppState.periode, slotMax: 0, deskripsi: '' };
   if (!m) return;
   const owner = AppState.role === 'owner';
+  window.__menuPhoto = null;
   const body = `
-    <label class="field-label" for="pNama">Nama produk</label>
+    <label class="field-label">Foto menu</label>
+    <div id="pPrev" style="margin-bottom:8px">${m.foto ? `<img src="${esc(m.foto)}" alt="" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px">` : '<div class="hint">Belum ada foto. Pilih dari galeri atau kamera (JPG/PNG/WEBP, maks 3MB).</div>'}</div>
+    <input id="pFoto" class="input" type="file" accept="image/jpeg,image/png,image/webp" onchange="pickMenuPhoto(this)">
+    <label class="field-label" for="pNama" style="margin-top:10px">Nama produk</label>
     <input id="pNama" class="input" value="${esc(m.nama)}">
     <label class="field-label" for="pKat" style="margin-top:10px">Kategori</label>
     <input id="pKat" class="input" value="${esc(m.kategori)}">
@@ -778,6 +782,20 @@ function openProductSheet(id) {
   openSheet(id ? 'Ubah Produk' : 'Produk Baru', body + (owner && id ? `<button class="btn btn-danger btn-block" style="margin-top:14px" onclick="deleteProduct('${esc(id)}')">Hapus produk</button>` : ''), foot);
 }
 
+/** Baca foto yang dipilih admin, cek ukuran, lalu tampilkan pratinjaunya. */
+function pickMenuPhoto(input) {
+  const f = input.files && input.files[0];
+  window.__menuPhoto = null;
+  if (!f) return;
+  if (f.size > 3 * 1024 * 1024) { toast('Ukuran foto melebihi 3MB.', 'warn'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    window.__menuPhoto = { base64: reader.result, mime: f.type, name: f.name };
+    $('pPrev').innerHTML = `<img src="${reader.result}" alt="Pratinjau foto" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px">`;
+  };
+  reader.readAsDataURL(f);
+}
+
 function submitProductForm(id) {
   saveProduct({
     id: id || '',
@@ -788,8 +806,9 @@ function submitProductForm(id) {
     slotMax: $('pSlot').value,
     deskripsi: $('pDesk').value.trim(),
     periode: AppState.periode,
-    aktif: $('pAktif').checked
-  }, () => { closeSheet(); loadMenuAdmin(); });
+    aktif: $('pAktif').checked,
+    ...(window.__menuPhoto ? { fotoBase64: window.__menuPhoto.base64, mime: window.__menuPhoto.mime, fileName: window.__menuPhoto.name } : {})
+  }, () => { window.__menuPhoto = null; closeSheet(); loadMenuAdmin(); });
 }
 
 function saveProduct(p, after) {
