@@ -4,7 +4,7 @@
    ========================================================== */
 
 /* >>> GANTI dengan URL /exec dari deployment Apps Script Anda <<< */
-const API_URL = 'https://script.google.com/macros/s/AKfycbyWFVGIIKayBc_nyKxIlDH0p2V1YmK_wU4cS2O1pS_WEOeUBmEJpPy_DZojTKTsN30Dng/exec';
+const API_URL = 'PASTE_URL_EXEC_DI_SINI';
 /* Client ID dari Google Cloud (bukan rahasia, aman di sini). */
 const GOOGLE_CLIENT_ID = '1012963695769-p8ah7t70b80pa8tt61idoj4oq2f1n9ss.apps.googleusercontent.com';
 /* Toko dari alamat, contoh ?toko=ibu-siti. Kosong = toko aktif pertama. */
