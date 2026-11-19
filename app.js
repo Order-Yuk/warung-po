@@ -5,6 +5,10 @@
 
 /* >>> GANTI dengan URL /exec dari deployment Apps Script Anda <<< */
 const API_URL = 'https://script.google.com/macros/s/AKfycbyWFVGIIKayBc_nyKxIlDH0p2V1YmK_wU4cS2O1pS_WEOeUBmEJpPy_DZojTKTsN30Dng/exec';
+/* Client ID dari Google Cloud (bukan rahasia, aman di sini). */
+const GOOGLE_CLIENT_ID = '1012963695769-p8ah7t70b80pa8tt61idoj4oq2f1n9ss.apps.googleusercontent.com';
+/* Toko dari alamat, contoh ?toko=ibu-siti. Kosong = toko aktif pertama. */
+const TOKO = new URLSearchParams(location.search).get('toko') || '';
 
 const AppState = {
   view: 'login',
@@ -22,8 +26,8 @@ const AppState = {
 };
 
 const LS = {
-  menuKey: 'wpo_menu_v1',
-  cartKey: 'wpo_cart_v1',
+  menuKey: 'wpo_menu_v1_' + (TOKO || 'default'),
+  cartKey: 'wpo_cart_v1_' + (TOKO || 'default'),
   formKey: 'wpo_form_v1',
   waKey: 'wpo_wa_v1',
   menuTtl: 10 * 60 * 1000
@@ -61,7 +65,8 @@ const API = {
   placeOrder: ([p]) => ({ data: p }),
   getMyOrders: ([wa]) => ({ data: { wa: wa } }),
   submitPaymentProof: ([p]) => ({ data: p }),
-  adminLogin: ([pin]) => ({ data: { pin: pin } }),
+  adminLoginGoogle: ([idToken]) => ({ data: { idToken: idToken } }),
+  tokoList: ([t]) => ({ token: t }),
   adminLogout: ([t]) => ({ token: t }),
   adminDashboard: ([t]) => ({ token: t }),
   adminListOrders: ([t, f]) => ({ token: t, data: { filter: f } }),
@@ -87,7 +92,7 @@ async function callServer(fn, args, onOk, onErr) {
     const resp = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: fn, token: m.token || '', data: m.data || {} })
+      body: JSON.stringify({ action: fn, token: m.token || '', data: Object.assign({}, m.data || {}, { toko: TOKO }) })
     });
     res = await resp.json();
   } catch (err) {
@@ -464,7 +469,8 @@ const ADMIN_NAV = [
   { id: 'menu',      label: 'Menu',      ico: '🥮', roles: ['owner', 'asisten'] },
   { id: 'production',label: 'Dapur',     ico: '🍳', roles: ['owner', 'asisten'] },
   { id: 'labels',    label: 'Label',     ico: '🏷', roles: ['owner', 'asisten'] },
-  { id: 'finance',   label: 'Keuangan',  ico: '💰', roles: ['owner'] }
+  { id: 'finance',   label: 'Keuangan',  ico: '💰', roles: ['owner'] },
+  { id: 'toko',      label: 'Toko',      ico: '🏪', roles: ['super'] }
 ];
 
 function showAuthTab(tab) {
@@ -475,18 +481,16 @@ function showAuthTab(tab) {
   $('tabAdmin').classList.toggle('is-on', !cust);
 }
 
-function loginAdmin(e) {
-  e.preventDefault();
-  const pin = $('adminPin').value.trim();
-  if (pin.length < 6) return toast('PIN harus 6 digit.', 'warn');
-  callServer('adminLogin', [pin], d => {
+/** Dipanggil Google setelah pengguna memilih akun. Token dikirim ke server untuk diverifikasi. */
+function onGoogleCredential(resp) {
+  callServer('adminLoginGoogle', [resp.credential], d => {
     AppState.token = d.token;
     AppState.role = d.role;
-    $('adminPin').value = '';
-    $('adminRole').textContent = d.role === 'owner' ? 'Masuk sebagai Pemilik' : 'Masuk sebagai Asisten (akses terbatas)';
+    const label = d.role === 'owner' ? 'Pemilik' : d.role === 'asisten' ? 'Asisten (akses terbatas)' : 'Super admin';
+    $('adminRole').textContent = 'Masuk sebagai ' + label + ' · ' + d.email;
     renderAdminNav();
     navigateTo('admin');
-    setAdminView('dashboard');
+    setAdminView(d.role === 'super' ? 'toko' : 'dashboard');
   });
 }
 
@@ -524,6 +528,7 @@ function refreshAdmin() {
   if (v === 'production') return loadProduction();
   if (v === 'labels') return loadLabels();
   if (v === 'finance') return loadFinance();
+  if (v === 'toko') return loadToko();
 }
 
 function adminLogout() {
@@ -908,6 +913,25 @@ function loadFinance() {
       <div class="card"><h3 class="card-title">Status pembayaran</h3><div class="list">${rowsStatus}</div></div>`;
   });
 }
+
+/** Daftar toko untuk super admin. */
+function loadToko() {
+  callServer('tokoList', [AppState.token], list => {
+    $('adminContent').innerHTML = `<div class="list">${(list || []).map(t => `
+      <div class="list-row">
+        <div class="main"><strong>${esc(t.namaToko)}</strong><span class="stat-line">${esc(t.idToko)} · owner ${esc(t.emailOwner)}${t.emailAsisten ? ' · asisten ' + esc(t.emailAsisten) : ''}</span></div>
+        <a class="btn btn-ghost" style="min-height:40px" href="${location.pathname}?toko=${encodeURIComponent(t.idToko)}" target="_blank" rel="noopener">Buka</a>
+      </div>`).join('') || '<div class="empty">Belum ada toko.</div>'}</div>`;
+  });
+}
+
+/** Menampilkan tombol Login Google setelah library Google siap. */
+function initGoogleBtn() {
+  if (!(window.google && google.accounts && google.accounts.id)) return setTimeout(initGoogleBtn, 200);
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential });
+  google.accounts.id.renderButton($('gBtn'), { theme: 'outline', size: 'large', text: 'signin_with', width: 280 });
+}
+initGoogleBtn();
 
 function kpi2(label, value, cls) {
   return `<div class="kpi ${cls === 'bad' ? 'bad' : ''}"><div class="label">${label}</div><div class="value">${value}</div></div>`;
