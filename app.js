@@ -68,6 +68,8 @@ const API = {
   adminLoginGoogle: ([idToken]) => ({ data: { idToken: idToken } }),
   tokoList: ([t]) => ({ token: t }),
   tokoCreate: ([t, p]) => ({ token: t, data: { baru: p } }),
+  adminGetSettings: ([t]) => ({ token: t }),
+  adminSaveSettings: ([t, p]) => ({ token: t, data: { pengaturan: p } }),
   adminLogout: ([t]) => ({ token: t }),
   adminDashboard: ([t]) => ({ token: t }),
   adminListOrders: ([t, f]) => ({ token: t, data: { filter: f } }),
@@ -158,6 +160,11 @@ function loadBootstrap() {
 }
 
 function applyMenu(data) {
+  if (data.namaToko) {
+    $('brandName').textContent = data.namaToko;
+    $('authTitle').textContent = data.namaToko;
+    document.title = data.namaToko;
+  }
   AppState.menu = data.menu || [];
   AppState.periode = data.periode || '';
   // buang item di keranjang yang sudah tidak ada/nonaktif
@@ -471,6 +478,7 @@ const ADMIN_NAV = [
   { id: 'production',label: 'Dapur',     ico: '🍳', roles: ['owner', 'asisten'] },
   { id: 'labels',    label: 'Label',     ico: '🏷', roles: ['owner', 'asisten'] },
   { id: 'finance',   label: 'Keuangan',  ico: '💰', roles: ['owner'] },
+  { id: 'pengaturan', label: 'Pengaturan', ico: '⚙️', roles: ['owner'] },
   { id: 'toko',      label: 'Toko',      ico: '🏪', roles: ['super'] }
 ];
 
@@ -530,6 +538,7 @@ function refreshAdmin() {
   if (v === 'labels') return loadLabels();
   if (v === 'finance') return loadFinance();
   if (v === 'toko') return loadToko();
+  if (v === 'pengaturan') return loadSettings();
 }
 
 function adminLogout() {
@@ -923,6 +932,30 @@ function loadToko() {
         <div class="main"><strong>${esc(t.namaToko)}</strong><span class="stat-line">${esc(t.idToko)} · owner ${esc(t.emailOwner)}${t.emailAsisten ? ' · asisten ' + esc(t.emailAsisten) : ''}</span></div>
         <a class="btn btn-ghost" style="min-height:40px" href="${location.pathname}?toko=${encodeURIComponent(t.idToko)}" target="_blank" rel="noopener">Buka</a>
       </div>`).join('') || '<div class="empty">Belum ada toko.</div>'}</div>`;
+  });
+}
+
+/** Pengaturan toko untuk pemilik: nama warung dan keterangan PO. */
+function loadSettings() {
+  callServer('adminGetSettings', [AppState.token], s => {
+    $('adminContent').innerHTML = `
+      <div class="card">
+        <label class="field-label" for="sNama">Nama warung</label>
+        <input id="sNama" class="input" value="${esc(s.namaToko)}">
+        <label class="field-label" for="sPeriode" style="margin-top:10px">Keterangan PO (tampil di katalog)</label>
+        <input id="sPeriode" class="input" value="${esc(s.periode)}" placeholder="Contoh: PO Lebaran 2027">
+        <button class="btn btn-primary" style="margin-top:14px" onclick="saveSettings()">Simpan Pengaturan</button>
+      </div>`;
+  });
+}
+
+function saveSettings() {
+  callServer('adminSaveSettings', [AppState.token, {
+    namaToko: $('sNama').value.trim(),
+    periode: $('sPeriode').value.trim()
+  }], () => {
+    toast('Pengaturan tersimpan.', 'ok');
+    loadSettings();
   });
 }
 
