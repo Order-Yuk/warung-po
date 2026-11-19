@@ -47,11 +47,10 @@
           <button class="btn btn-ghost btn-block" type="button" onclick="enterCatalog()">Buka Katalog Menu PO</button>
         </form>
 
-        <form id="formAdmin" class="stack hidden" onsubmit="loginAdmin(event)">
-          <label class="field-label" for="adminPin">PIN Warung (6 digit)</label>
-          <input id="adminPin" class="input" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="current-password" required>
-          <button class="btn btn-primary btn-block" type="submit">Masuk Dashboard</button>
-        </form>
+        <div id="formAdmin" class="stack hidden">
+          <p class="hint" style="margin:0 0 10px">Masuk dengan akun Google yang sudah didaftarkan sebagai admin toko.</p>
+          <div id="gBtn" style="display:flex;justify-content:center"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -161,6 +160,7 @@
     </div>
   </section>
 
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="app.js"></script>
 </body>
 </html>
