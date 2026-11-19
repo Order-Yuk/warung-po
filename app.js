@@ -4,7 +4,7 @@
    ========================================================== */
 
 /* >>> GANTI dengan URL /exec dari deployment Apps Script Anda <<< */
-const API_URL = 'https://script.google.com/macros/s/AKfycbyWFVGIIKayBc_nyKxIlDH0p2V1YmK_wU4cS2O1pS_WEOeUBmEJpPy_DZojTKTsN30Dng/exec';
+const API_URL = 'PASTE_URL_EXEC_DI_SINI';
 /* Client ID dari Google Cloud (bukan rahasia, aman di sini). */
 const GOOGLE_CLIENT_ID = '1012963695769-p8ah7t70b80pa8tt61idoj4oq2f1n9ss.apps.googleusercontent.com';
 /* Toko dari alamat, contoh ?toko=ibu-siti. Kosong = toko aktif pertama. */
@@ -67,6 +67,7 @@ const API = {
   submitPaymentProof: ([p]) => ({ data: p }),
   adminLoginGoogle: ([idToken]) => ({ data: { idToken: idToken } }),
   tokoList: ([t]) => ({ token: t }),
+  tokoCreate: ([t, p]) => ({ token: t, data: { baru: p } }),
   adminLogout: ([t]) => ({ token: t }),
   adminDashboard: ([t]) => ({ token: t }),
   adminListOrders: ([t, f]) => ({ token: t, data: { filter: f } }),
@@ -917,11 +918,44 @@ function loadFinance() {
 /** Daftar toko untuk super admin. */
 function loadToko() {
   callServer('tokoList', [AppState.token], list => {
-    $('adminContent').innerHTML = `<div class="list">${(list || []).map(t => `
+    $('adminContent').innerHTML = `<div style="display:flex;justify-content:flex-end"><button class="btn btn-primary" onclick="openTokoSheet()">+ Tambah Toko</button></div><div class="list">${(list || []).map(t => `
       <div class="list-row">
         <div class="main"><strong>${esc(t.namaToko)}</strong><span class="stat-line">${esc(t.idToko)} · owner ${esc(t.emailOwner)}${t.emailAsisten ? ' · asisten ' + esc(t.emailAsisten) : ''}</span></div>
         <a class="btn btn-ghost" style="min-height:40px" href="${location.pathname}?toko=${encodeURIComponent(t.idToko)}" target="_blank" rel="noopener">Buka</a>
       </div>`).join('') || '<div class="empty">Belum ada toko.</div>'}</div>`;
+  });
+}
+
+/** Form toko baru (super admin). Database toko dibuat otomatis oleh server. */
+function openTokoSheet() {
+  const body = `
+    <label class="field-label" for="tId">ID toko (huruf kecil, tanpa spasi)</label>
+    <input id="tId" class="input" placeholder="contoh: keluarga-budi">
+    <label class="field-label" for="tNama" style="margin-top:10px">Nama toko</label>
+    <input id="tNama" class="input" placeholder="contoh: Dapur Budi">
+    <label class="field-label" for="tOwner" style="margin-top:10px">Gmail pemilik</label>
+    <input id="tOwner" class="input" type="email" placeholder="nama@gmail.com">
+    <label class="field-label" for="tAsisten" style="margin-top:10px">Gmail asisten (opsional)</label>
+    <input id="tAsisten" class="input" type="email" placeholder="nama@gmail.com">
+    <label class="field-label" for="tWa" style="margin-top:10px">Nomor WA pemilik (opsional)</label>
+    <input id="tWa" class="input" type="tel" placeholder="0812-xxxx-xxxx">
+    <p class="hint">Gmail pemilik dan asisten juga harus ditambahkan ke Test users di Google Cloud, selama status aplikasi masih Testing.</p>`;
+  const foot = `<button class="btn btn-ghost" onclick="closeSheet()">Batal</button>
+    <button class="btn btn-primary" onclick="submitToko()">Buat Toko</button>`;
+  openSheet('Toko Baru', body, foot);
+}
+
+function submitToko() {
+  callServer('tokoCreate', [AppState.token, {
+    idToko: $('tId').value.trim(),
+    namaToko: $('tNama').value.trim(),
+    emailOwner: $('tOwner').value.trim(),
+    emailAsisten: $('tAsisten').value.trim(),
+    waOwner: normalizeWa($('tWa').value)
+  }], () => {
+    toast('Toko dibuat.', 'ok');
+    closeSheet();
+    loadToko();
   });
 }
 
