@@ -156,6 +156,9 @@ function loadBootstrap() {
   callServer('getBootstrap', [], data => {
     lsSet(LS.menuKey, { at: Date.now(), data: data });
     applyMenu(data);
+  }, () => {
+    AppState.menuError = true;
+    if (AppState.view === 'catalog') renderCatalog();
   });
 }
 
@@ -167,6 +170,7 @@ function applyMenu(data) {
   }
   AppState.menu = data.menu || [];
   AppState.periode = data.periode || '';
+  AppState.menuLoaded = true;
   // buang item di keranjang yang sudah tidak ada/nonaktif
   const ids = new Set(AppState.menu.map(m => m.id));
   Object.keys(AppState.cart).forEach(id => { if (!ids.has(id)) delete AppState.cart[id]; });
@@ -203,7 +207,9 @@ const isWaOk = wa => /^62\d{8,13}$/.test(wa);
 function renderCatalog() {
   $('poBanner').innerHTML = AppState.periode
     ? `<strong>${esc(AppState.periode)}</strong><span>Pilih menu, isi keranjang, lalu pilih tanggal kirim.</span>`
-    : '<strong>Memuat menu…</strong><span class="skel" style="display:block;height:14px;width:60%;margin-top:6px"></span>';
+    : AppState.menuLoaded
+      ? '<strong>Pesan menu kami</strong><span>Pilih menu, isi keranjang, lalu pilih tanggal kirim.</span>'
+      : '<strong>Memuat menu…</strong><span class="skel" style="display:block;height:14px;width:60%;margin-top:6px"></span>';
 
   const cats = ['Semua'].concat([...new Set(AppState.menu.map(m => m.kategori).filter(Boolean))]);
   $('catChips').innerHTML = cats.map(c =>
@@ -212,7 +218,13 @@ function renderCatalog() {
 
   const list = AppState.menu.filter(m => AppState.category === 'Semua' || m.kategori === AppState.category);
   if (!AppState.menu.length) {
-    $('menuGrid').innerHTML = [1, 2, 3, 4].map(() => '<div class="skel" style="height:240px;border-radius:16px"></div>').join('');
+    if (AppState.menuLoaded) {
+      $('menuGrid').innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="ico">🥐</div>Belum ada menu yang dijual. Pemilik warung bisa menambahkannya di dashboard.</div>';
+    } else if (AppState.menuError) {
+      $('menuGrid').innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="ico">⚠️</div>Gagal memuat menu. Periksa koneksi, lalu muat ulang halaman.</div>';
+    } else {
+      $('menuGrid').innerHTML = [1, 2, 3, 4].map(() => '<div class="skel" style="height:240px;border-radius:16px"></div>').join('');
+    }
     return;
   }
   if (!list.length) {
@@ -344,14 +356,48 @@ function submitOrder() {
   // Optimistic: tombol langsung terkunci, pesanan disimpan di server di latar.
   const btn = $('btnPlace');
   btn.disabled = true; btn.textContent = 'Mengirim…';
-  callServer('placeOrder', [payload], () => {
+  const info = { nama: nama, wa: wa, tgl: tgl, jam: $('fJam').value, catatan: $('fCatatan').value, lines: t.lines };
+  callServer('placeOrder', [payload], (res) => {
     AppState.cart = {}; saveCart();
     AppState.custWa = wa; AppState.custNama = nama;
     lsSet(LS.waKey, { wa: wa, nama: nama });
-    toast('Pesanan terkirim. Notifikasi WA sudah dijadwalkan.', 'ok');
-    btn.textContent = 'Kirim Pesanan';
-    navigateTo('myOrders');
+    btn.disabled = false; btn.textContent = 'Kirim Pesanan';
+    renderCart();
+    showOrderDone(res, info);
   }, () => { btn.disabled = false; btn.textContent = 'Kirim Pesanan'; });
+}
+
+/** Pesan yang dikirim pelanggan ke pemilik lewat WhatsApp. */
+function buildOwnerMsg(res, info) {
+  const rincian = info.lines.map(l => `- ${l.m.nama} (${l.m.varian}) x${l.jumlah} = ${rp(l.subtotal)}`).join('\n');
+  return `Pesanan baru di ${res.namaToko || 'warung'}\n` +
+    `ID: ${res.idPesanan}\n` +
+    `Nama: ${info.nama}\n` +
+    `WA: ${info.wa}\n` +
+    `Kirim: ${info.tgl}${info.jam ? ' · ' + info.jam : ''}\n\n` +
+    `Rincian:\n${rincian}\n\n` +
+    `Total: ${rp(res.total)}` +
+    (info.catatan ? `\nCatatan: ${info.catatan}` : '') +
+    `\n\nMohon konfirmasi ya. Terima kasih.`;
+}
+
+/** Layar setelah pesanan terkirim: rincian, total, dan tombol konfirmasi ke pemilik. */
+function showOrderDone(res, info) {
+  const rows = info.lines.map(l =>
+    `<li><span>${l.jumlah}× ${esc(l.m.nama)} <span class="hint">${esc(l.m.varian)}</span></span><span class="mono">${rp(l.subtotal)}</span></li>`
+  ).join('');
+  const body = `
+    <div class="order-id">${esc(res.idPesanan)}</div>
+    <div class="hint">${esc(info.nama)} · ${esc(info.wa)}</div>
+    <div class="hint">Kirim ${esc(info.tgl)}${info.jam ? ' · ' + esc(info.jam) : ''}</div>
+    <ul class="order-items">${rows}</ul>
+    <div class="pay-line"><strong>Total</strong><strong class="mono">${rp(res.total)}</strong></div>
+    <p class="hint" style="margin-top:12px">Kirim konfirmasi ke pemilik warung supaya pesanan Anda segera diproses.</p>`;
+  const waBtn = res.ownerWa
+    ? `<a class="btn btn-primary" href="${esc(waLink(res.ownerWa, buildOwnerMsg(res, info)))}" target="_blank" rel="noopener">Konfirmasi ke Pemilik</a>`
+    : '<span class="hint">Nomor WA pemilik belum diisi.</span>';
+  const foot = `<button class="btn btn-ghost" onclick="closeSheet(); navigateTo('myOrders')">Lihat Pesanan</button>${waBtn}`;
+  openSheet('Pesanan Terkirim', body, foot);
 }
 
 /* ---------- pesanan saya ---------- */
@@ -944,6 +990,8 @@ function loadSettings() {
         <input id="sNama" class="input" value="${esc(s.namaToko)}">
         <label class="field-label" for="sPeriode" style="margin-top:10px">Keterangan PO (tampil di katalog)</label>
         <input id="sPeriode" class="input" value="${esc(s.periode)}" placeholder="Contoh: PO Lebaran 2027">
+        <label class="field-label" for="sWa" style="margin-top:10px">Nomor WA pemilik (untuk konfirmasi pesanan)</label>
+        <input id="sWa" class="input" type="tel" value="${esc(s.waOwner)}" placeholder="0812-xxxx-xxxx">
         <button class="btn btn-primary" style="margin-top:14px" onclick="saveSettings()">Simpan Pengaturan</button>
       </div>`;
   });
@@ -952,7 +1000,8 @@ function loadSettings() {
 function saveSettings() {
   callServer('adminSaveSettings', [AppState.token, {
     namaToko: $('sNama').value.trim(),
-    periode: $('sPeriode').value.trim()
+    periode: $('sPeriode').value.trim(),
+    waOwner: $('sWa').value.trim()
   }], () => {
     toast('Pengaturan tersimpan.', 'ok');
     loadSettings();
